@@ -1,0 +1,33 @@
+# SecondPass reviews its own pull requests: tests run with coverage first,
+# so untested changes rank higher, then the Action posts the review order.
+name: SecondPass
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review-order:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run tests with coverage
+        run: node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info "test/**/*.test.ts"
+      - uses: ./
+        id: secondpass
+        with:
+          coverage-file: lcov.info
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          ignore: |
+            ^dist/
+            ^examples/sample-report\.(json|html)$
+      - uses: actions/upload-artifact@v4
+        with:
+          name: secondpass-report
+          path: ${{ steps.secondpass.outputs.report-html }}

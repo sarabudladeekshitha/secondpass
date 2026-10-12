@@ -1,0 +1,9 @@
+{
+  "db/migrations/20261005_partial_refunds.sql:1": "Creates the refunds table, indexes payment_id and drops payments.legacy_status",
+  "src/jobs/sync.ts:1": "Raises ledger retries from 3 to 5, stops awaiting ledger.post and drops the final rethrow",
+  "src/auth/routes.ts:5": "Removes requireRole(\"billing\") from POST /refunds/:paymentId; requireAuth stays",
+  "src/payments/refunds.ts:3": "Adds an optional partial amount, tracks the remaining balance and now rejects refunds made exactly 30 days after capture (> becomes >=)",
+  "package.json:1": "Bumps express from ^4.19.2 to ^4.21.2",
+  "test/refunds.test.ts:1": "Adds tests for full refunds and for refunds over the remaining balance",
+  "README.md:1": "Mentions partial refund support in the README"
+}

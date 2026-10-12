@@ -1,0 +1,48 @@
+{
+  "name": "secondpass",
+  "version": "0.1.0",
+  "description": "Make AI-written pull requests reviewable: rank every hunk by risk from the diff and test coverage, collapse the noise.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Deekshitha Sarabudla",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarabudladeekshitha/secondpass.git"
+  },
+  "bin": {
+    "secondpass": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "demo": "node src/cli.ts --diff examples/sample.diff --coverage examples/lcov.info --html report.html --format text",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "0.28.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "~6.0.3"
+  },
+  "keywords": [
+    "code-review",
+    "pull-requests",
+    "github-action",
+    "risk",
+    "diff",
+    "ai",
+    "claude"
+  ]
+}

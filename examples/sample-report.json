@@ -1,0 +1,1391 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-12T12:00:00.000Z",
+  "source": {
+    "repo": "acme/shop",
+    "pr": 482,
+    "title": "Add partial refunds",
+    "url": "https://github.com/acme/shop/pull/482"
+  },
+  "totals": {
+    "files": 12,
+    "hunks": 12,
+    "added": 52,
+    "removed": 25,
+    "byTier": {
+      "critical": 3,
+      "high": 1,
+      "medium": 0,
+      "low": 3,
+      "trivial": 5
+    },
+    "coverageProvided": true
+  },
+  "hunks": [
+    {
+      "hunk": {
+        "id": "db/migrations/20261005_partial_refunds.sql:1",
+        "path": "db/migrations/20261005_partial_refunds.sql",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 1,
+        "newLines": 9,
+        "section": "",
+        "lines": [
+          {
+            "kind": "add",
+            "text": "CREATE TABLE refunds (",
+            "newLine": 1
+          },
+          {
+            "kind": "add",
+            "text": "  id TEXT PRIMARY KEY,",
+            "newLine": 2
+          },
+          {
+            "kind": "add",
+            "text": "  payment_id TEXT NOT NULL REFERENCES payments(id),",
+            "newLine": 3
+          },
+          {
+            "kind": "add",
+            "text": "  amount_cents INTEGER NOT NULL,",
+            "newLine": 4
+          },
+          {
+            "kind": "add",
+            "text": "  actor_id TEXT NOT NULL,",
+            "newLine": 5
+          },
+          {
+            "kind": "add",
+            "text": "  created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+            "newLine": 6
+          },
+          {
+            "kind": "add",
+            "text": ");",
+            "newLine": 7
+          },
+          {
+            "kind": "add",
+            "text": "CREATE INDEX idx_refunds_payment_id ON refunds (payment_id);",
+            "newLine": 8
+          },
+          {
+            "kind": "add",
+            "text": "ALTER TABLE payments DROP COLUMN legacy_status;",
+            "newLine": 9
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "db/migrations/20261005_partial_refunds.sql",
+        "newPath": "db/migrations/20261005_partial_refunds.sql",
+        "status": "added"
+      },
+      "added": 9,
+      "removed": 0,
+      "risk": {
+        "score": 77,
+        "tier": "critical",
+        "signals": [
+          {
+            "id": "schema.destructive",
+            "category": "data",
+            "weight": 55,
+            "reason": "Destructive schema change: `DROP COLUMN` cannot be rolled back without data loss",
+            "at": [
+              8
+            ]
+          },
+          {
+            "id": "path.migration",
+            "category": "migration",
+            "weight": 30,
+            "reason": "Database migration or schema file"
+          },
+          {
+            "id": "path.money",
+            "category": "money",
+            "weight": 18,
+            "reason": "File handles payments, billing or orders"
+          },
+          {
+            "id": "schema.locking-index",
+            "category": "migration",
+            "weight": 16,
+            "reason": "Index built without CONCURRENTLY can lock writes on large tables",
+            "at": [
+              7
+            ]
+          },
+          {
+            "id": "money.touched",
+            "category": "money",
+            "weight": 12,
+            "reason": "Touches money-related values (`amount_cents`, `payments`)",
+            "at": [
+              3,
+              8
+            ]
+          },
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 5,
+            "reason": "9 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "not-executable"
+        }
+      },
+      "summary": "Creates the refunds table, indexes payment_id and drops payments.legacy_status",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "src/auth/routes.ts:5",
+        "path": "src/auth/routes.ts",
+        "oldStart": 5,
+        "oldLines": 4,
+        "newStart": 5,
+        "newLines": 4,
+        "section": "import { refundHandler, listRefundsHandler } from \"../payments/handlers\";",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "export const router = Router();",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 6,
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "router.get(\"/refunds\", requireAuth, requireRole(\"billing\"), listRefundsHandler);",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "kind": "del",
+            "text": "router.post(\"/refunds/:paymentId\", requireAuth, requireRole(\"billing\"), refundHandler);",
+            "oldLine": 8
+          },
+          {
+            "kind": "add",
+            "text": "router.post(\"/refunds/:paymentId\", requireAuth, refundHandler);",
+            "newLine": 8
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/auth/routes.ts",
+        "newPath": "src/auth/routes.ts",
+        "status": "modified"
+      },
+      "added": 1,
+      "removed": 1,
+      "risk": {
+        "score": 70,
+        "tier": "critical",
+        "signals": [
+          {
+            "id": "auth.guard-removed",
+            "category": "auth",
+            "weight": 55,
+            "reason": "Authorization check removed: `requireRole` no longer runs on `router.post(\"/refunds/:paymentId\", requ…`",
+            "at": [
+              3
+            ]
+          },
+          {
+            "id": "path.auth",
+            "category": "auth",
+            "weight": 20,
+            "reason": "File is part of authentication / authorization"
+          },
+          {
+            "id": "api.route",
+            "category": "api",
+            "weight": 18,
+            "reason": "Adds, removes or changes an HTTP route",
+            "at": [
+              3,
+              4
+            ]
+          },
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 3,
+            "reason": "2 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 1,
+          "covered": 1,
+          "uncoveredLines": [],
+          "status": "measured"
+        }
+      },
+      "summary": "Removes requireRole(\"billing\") from POST /refunds/:paymentId; requireAuth stays",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "src/jobs/sync.ts:1",
+        "path": "src/jobs/sync.ts",
+        "oldStart": 1,
+        "oldLines": 18,
+        "newStart": 1,
+        "newLines": 15,
+        "section": "",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "import { ledger } from \"../ledger\";",
+            "oldLine": 1,
+            "newLine": 1
+          },
+          {
+            "kind": "ctx",
+            "text": "import { logger } from \"../utils/logger\";",
+            "oldLine": 2,
+            "newLine": 2
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "kind": "del",
+            "text": "const MAX_ATTEMPTS = 3;",
+            "oldLine": 4
+          },
+          {
+            "kind": "add",
+            "text": "const MAX_ATTEMPTS = 5;",
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "ctx",
+            "text": "export async function syncRefundsToLedger(refunds: { id: string; amountCents: number }[]) {",
+            "oldLine": 6,
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "  for (const refund of refunds) {",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "kind": "ctx",
+            "text": "    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {",
+            "oldLine": 8,
+            "newLine": 8
+          },
+          {
+            "kind": "ctx",
+            "text": "      try {",
+            "oldLine": 9,
+            "newLine": 9
+          },
+          {
+            "kind": "del",
+            "text": "        await ledger.post({ type: \"refund\", ref: refund.id, amountCents: -refund.amountCents });",
+            "oldLine": 10
+          },
+          {
+            "kind": "add",
+            "text": "        ledger.post({ type: \"refund\", ref: refund.id, amountCents: -refund.amountCents });",
+            "newLine": 10
+          },
+          {
+            "kind": "ctx",
+            "text": "        break;",
+            "oldLine": 11,
+            "newLine": 11
+          },
+          {
+            "kind": "del",
+            "text": "      } catch (err) {",
+            "oldLine": 12
+          },
+          {
+            "kind": "del",
+            "text": "        logger.warn(\"ledger post failed\", { refund: refund.id, attempt, err });",
+            "oldLine": 13
+          },
+          {
+            "kind": "del",
+            "text": "        if (attempt === MAX_ATTEMPTS) throw err;",
+            "oldLine": 14
+          },
+          {
+            "kind": "del",
+            "text": "      }",
+            "oldLine": 15
+          },
+          {
+            "kind": "add",
+            "text": "      } catch (err) {}",
+            "newLine": 12
+          },
+          {
+            "kind": "ctx",
+            "text": "    }",
+            "oldLine": 16,
+            "newLine": 13
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 17,
+            "newLine": 14
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 18,
+            "newLine": 15
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/jobs/sync.ts",
+        "newPath": "src/jobs/sync.ts",
+        "status": "modified"
+      },
+      "added": 3,
+      "removed": 6,
+      "risk": {
+        "score": 65,
+        "tier": "critical",
+        "signals": [
+          {
+            "id": "concurrency.await-removed",
+            "category": "concurrency",
+            "weight": 26,
+            "reason": "`await` removed: the call is no longer waited for",
+            "at": [
+              11
+            ]
+          },
+          {
+            "id": "error.swallowed",
+            "category": "error-handling",
+            "weight": 24,
+            "reason": "Error is caught and ignored",
+            "at": [
+              17
+            ]
+          },
+          {
+            "id": "error.removed",
+            "category": "error-handling",
+            "weight": 20,
+            "reason": "Error handling removed: `if (attempt === MAX_ATTEMPTS) throw err;`",
+            "at": [
+              15
+            ]
+          },
+          {
+            "id": "behaviour.limit",
+            "category": "behaviour",
+            "weight": 18,
+            "reason": "Limit or timeout changed: 3 → 5",
+            "at": [
+              4
+            ]
+          },
+          {
+            "id": "coverage.uncovered",
+            "category": "coverage",
+            "weight": 18,
+            "reason": "2 of 2 changed executable lines never run by tests"
+          },
+          {
+            "id": "money.touched",
+            "category": "money",
+            "weight": 12,
+            "reason": "Touches money-related values (`ledger`, `refund`, `amountCents`)",
+            "at": [
+              10,
+              11,
+              14
+            ]
+          },
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 5,
+            "reason": "9 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 2,
+          "covered": 0,
+          "uncoveredLines": [
+            4,
+            10
+          ],
+          "status": "measured"
+        }
+      },
+      "summary": "Raises ledger retries from 3 to 5, stops awaiting ledger.post and drops the final rethrow",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "src/payments/refunds.ts:3",
+        "path": "src/payments/refunds.ts",
+        "oldStart": 3,
+        "oldLines": 16,
+        "newStart": 3,
+        "newLines": 24,
+        "section": "import type { Payment } from \"./types\";",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "kind": "ctx",
+            "text": "export const MAX_REFUND_WINDOW_DAYS = 30;",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "del",
+            "text": "export async function refundPayment(paymentId: string, actorId: string) {",
+            "oldLine": 6
+          },
+          {
+            "kind": "add",
+            "text": "export async function refundPayment(paymentId: string, actorId: string, requestedAmount?: string) {",
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "  const payment: Payment = await db.payments.find(paymentId);",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "kind": "ctx",
+            "text": "  if (!payment) throw new Error(\"payment not found\");",
+            "oldLine": 8,
+            "newLine": 8
+          },
+          {
+            "kind": "del",
+            "text": "  if (payment.status !== \"captured\") {",
+            "oldLine": 9
+          },
+          {
+            "kind": "add",
+            "text": "  if (payment.status !== \"captured\" && payment.status !== \"partially_refunded\") {",
+            "newLine": 9
+          },
+          {
+            "kind": "ctx",
+            "text": "    throw new Error(\"only captured payments can be refunded\");",
+            "oldLine": 10,
+            "newLine": 10
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 11,
+            "newLine": 11
+          },
+          {
+            "kind": "ctx",
+            "text": "  const ageDays = (Date.now() - payment.capturedAt.getTime()) / 86_400_000;",
+            "oldLine": 12,
+            "newLine": 12
+          },
+          {
+            "kind": "del",
+            "text": "  if (ageDays > MAX_REFUND_WINDOW_DAYS) {",
+            "oldLine": 13
+          },
+          {
+            "kind": "add",
+            "text": "  if (ageDays >= MAX_REFUND_WINDOW_DAYS) {",
+            "newLine": 13
+          },
+          {
+            "kind": "ctx",
+            "text": "    throw new Error(\"refund window has closed\");",
+            "oldLine": 14,
+            "newLine": 14
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 15,
+            "newLine": 15
+          },
+          {
+            "kind": "del",
+            "text": "  await db.refunds.insert({ paymentId, amountCents: payment.amountCents, actorId });",
+            "oldLine": 16
+          },
+          {
+            "kind": "del",
+            "text": "  await db.payments.update(paymentId, { status: \"refunded\" });",
+            "oldLine": 17
+          },
+          {
+            "kind": "add",
+            "text": "  const alreadyRefunded = await db.refunds.sumForPayment(paymentId);",
+            "newLine": 16
+          },
+          {
+            "kind": "add",
+            "text": "  const refundAmountCents = requestedAmount",
+            "newLine": 17
+          },
+          {
+            "kind": "add",
+            "text": "    ? Math.round(parseFloat(requestedAmount) * 100)",
+            "newLine": 18
+          },
+          {
+            "kind": "add",
+            "text": "    : payment.amountCents - alreadyRefunded;",
+            "newLine": 19
+          },
+          {
+            "kind": "add",
+            "text": "  if (refundAmountCents > payment.amountCents - alreadyRefunded) {",
+            "newLine": 20
+          },
+          {
+            "kind": "add",
+            "text": "    throw new Error(\"refund exceeds remaining balance\");",
+            "newLine": 21
+          },
+          {
+            "kind": "add",
+            "text": "  }",
+            "newLine": 22
+          },
+          {
+            "kind": "add",
+            "text": "  await db.refunds.insert({ paymentId, amountCents: refundAmountCents, actorId });",
+            "newLine": 23
+          },
+          {
+            "kind": "add",
+            "text": "  const fullyRefunded = alreadyRefunded + refundAmountCents === payment.amountCents;",
+            "newLine": 24
+          },
+          {
+            "kind": "add",
+            "text": "  await db.payments.update(paymentId, { status: fullyRefunded ? \"refunded\" : \"partially_refunded\" });",
+            "newLine": 25
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 18,
+            "newLine": 26
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/payments/refunds.ts",
+        "newPath": "src/payments/refunds.ts",
+        "status": "modified"
+      },
+      "added": 13,
+      "removed": 5,
+      "risk": {
+        "score": 42,
+        "tier": "high",
+        "signals": [
+          {
+            "id": "money.arithmetic",
+            "category": "money",
+            "weight": 32,
+            "reason": "Arithmetic or rounding on money values (`alreadyRefunded`, `refundAmountCents`, `requestedAmount`)",
+            "at": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              26
+            ]
+          },
+          {
+            "id": "behaviour.comparison",
+            "category": "behaviour",
+            "weight": 26,
+            "reason": "Boundary changed: `>` → `>=`",
+            "at": [
+              13
+            ]
+          },
+          {
+            "id": "path.money",
+            "category": "money",
+            "weight": 18,
+            "reason": "File handles payments, billing or orders"
+          },
+          {
+            "id": "money.float",
+            "category": "money",
+            "weight": 14,
+            "reason": "Floating-point conversion on a money value",
+            "at": [
+              20
+            ]
+          },
+          {
+            "id": "behaviour.branch-added",
+            "category": "behaviour",
+            "weight": 14,
+            "reason": "New branch: `if (refundAmountCents > payment.amountCents - a…`",
+            "at": [
+              22
+            ]
+          },
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 7,
+            "reason": "18 changed lines of code"
+          },
+          {
+            "id": "coverage.covered",
+            "category": "coverage",
+            "weight": -10,
+            "reason": "All 12 changed executable lines are run by tests"
+          }
+        ],
+        "coverage": {
+          "instrumented": 12,
+          "covered": 12,
+          "uncoveredLines": [],
+          "status": "measured"
+        }
+      },
+      "summary": "Adds an optional partial amount, tracks the remaining balance and now rejects refunds made exactly 30 days after capture (> becomes >=)",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "package.json:1",
+        "path": "package.json",
+        "oldStart": 1,
+        "oldLines": 6,
+        "newStart": 1,
+        "newLines": 6,
+        "section": "",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "{",
+            "oldLine": 1,
+            "newLine": 1
+          },
+          {
+            "kind": "ctx",
+            "text": "  \"name\": \"shop\",",
+            "oldLine": 2,
+            "newLine": 2
+          },
+          {
+            "kind": "ctx",
+            "text": "  \"dependencies\": {",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "kind": "del",
+            "text": "    \"express\": \"^4.19.2\"",
+            "oldLine": 4
+          },
+          {
+            "kind": "add",
+            "text": "    \"express\": \"^4.21.2\"",
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 6,
+            "newLine": 6
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "package.json",
+        "newPath": "package.json",
+        "status": "modified"
+      },
+      "added": 1,
+      "removed": 1,
+      "risk": {
+        "score": 14,
+        "tier": "low",
+        "signals": [
+          {
+            "id": "dependency.versions",
+            "category": "dependency",
+            "weight": 12,
+            "reason": "Dependency versions changed (2 lines)",
+            "at": [
+              3,
+              4
+            ]
+          },
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 3,
+            "reason": "2 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "not-executable"
+        }
+      },
+      "summary": "Bumps express from ^4.19.2 to ^4.21.2",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "test/refunds.test.ts:1",
+        "path": "test/refunds.test.ts",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 1,
+        "newLines": 12,
+        "section": "",
+        "lines": [
+          {
+            "kind": "add",
+            "text": "import { describe, it, expect } from \"vitest\";",
+            "newLine": 1
+          },
+          {
+            "kind": "add",
+            "text": "import { refundPayment } from \"../src/payments/refunds\";",
+            "newLine": 2
+          },
+          {
+            "kind": "add",
+            "text": "",
+            "newLine": 3
+          },
+          {
+            "kind": "add",
+            "text": "describe(\"refundPayment\", () => {",
+            "newLine": 4
+          },
+          {
+            "kind": "add",
+            "text": "  it(\"refunds the remaining balance by default\", async () => {",
+            "newLine": 5
+          },
+          {
+            "kind": "add",
+            "text": "    await expect(refundPayment(\"pay_1\", \"user_1\")).resolves.toBeUndefined();",
+            "newLine": 6
+          },
+          {
+            "kind": "add",
+            "text": "  });",
+            "newLine": 7
+          },
+          {
+            "kind": "add",
+            "text": "",
+            "newLine": 8
+          },
+          {
+            "kind": "add",
+            "text": "  it(\"rejects refunds larger than the remaining balance\", async () => {",
+            "newLine": 9
+          },
+          {
+            "kind": "add",
+            "text": "    await expect(refundPayment(\"pay_1\", \"user_1\", \"999.00\")).rejects.toThrow(\"exceeds\");",
+            "newLine": 10
+          },
+          {
+            "kind": "add",
+            "text": "  });",
+            "newLine": 11
+          },
+          {
+            "kind": "add",
+            "text": "});",
+            "newLine": 12
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "test/refunds.test.ts",
+        "newPath": "test/refunds.test.ts",
+        "status": "added"
+      },
+      "added": 12,
+      "removed": 0,
+      "risk": {
+        "score": 3,
+        "tier": "low",
+        "signals": [
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 5,
+            "reason": "10 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "not-executable"
+        }
+      },
+      "summary": "Adds tests for full refunds and for refunds over the remaining balance",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "README.md:1",
+        "path": "README.md",
+        "oldStart": 1,
+        "oldLines": 3,
+        "newStart": 1,
+        "newLines": 3,
+        "section": "",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "# Shop",
+            "oldLine": 1,
+            "newLine": 1
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 2,
+            "newLine": 2
+          },
+          {
+            "kind": "del",
+            "text": "Payments service.",
+            "oldLine": 3
+          },
+          {
+            "kind": "add",
+            "text": "Payments service. Supports full and partial refunds.",
+            "newLine": 3
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "README.md",
+        "newPath": "README.md",
+        "status": "modified"
+      },
+      "added": 1,
+      "removed": 1,
+      "risk": {
+        "score": 1,
+        "tier": "low",
+        "signals": [
+          {
+            "id": "size",
+            "category": "size",
+            "weight": 3,
+            "reason": "2 changed lines of code"
+          }
+        ],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "not-executable"
+        }
+      },
+      "summary": "Mentions partial refund support in the README",
+      "summarySource": "model"
+    },
+    {
+      "hunk": {
+        "id": "package-lock.json:3",
+        "path": "package-lock.json",
+        "oldStart": 3,
+        "oldLines": 7,
+        "newStart": 3,
+        "newLines": 7,
+        "section": "",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "  \"lockfileVersion\": 3,",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "kind": "ctx",
+            "text": "  \"packages\": {",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "    \"node_modules/express\": {",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "del",
+            "text": "      \"version\": \"4.19.2\"",
+            "oldLine": 6
+          },
+          {
+            "kind": "add",
+            "text": "      \"version\": \"4.21.2\"",
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "    }",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 8,
+            "newLine": 8
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 9,
+            "newLine": 9
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "package-lock.json",
+        "newPath": "package-lock.json",
+        "status": "modified"
+      },
+      "added": 1,
+      "removed": 1,
+      "risk": {
+        "score": 0,
+        "tier": "trivial",
+        "signals": [],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "not-executable"
+        },
+        "trivial": {
+          "kind": "generated",
+          "reason": "Generated or lock file"
+        }
+      },
+      "summary": "Generated or lock file",
+      "summarySource": "heuristic"
+    },
+    {
+      "hunk": {
+        "id": "src/api/client.ts:1",
+        "path": "src/api/client.ts",
+        "oldStart": 1,
+        "oldLines": 7,
+        "newStart": 1,
+        "newLines": 7,
+        "section": "",
+        "lines": [
+          {
+            "kind": "del",
+            "text": "import { retry } from \"../utils/retry\";",
+            "oldLine": 1
+          },
+          {
+            "kind": "del",
+            "text": "import { logger } from \"../utils/logger\";",
+            "oldLine": 2
+          },
+          {
+            "kind": "ctx",
+            "text": "import { config } from \"../config\";",
+            "oldLine": 3,
+            "newLine": 1
+          },
+          {
+            "kind": "ctx",
+            "text": "import type { Payment, Refund } from \"../payments/types\";",
+            "oldLine": 4,
+            "newLine": 2
+          },
+          {
+            "kind": "add",
+            "text": "import { logger } from \"../utils/logger\";",
+            "newLine": 3
+          },
+          {
+            "kind": "add",
+            "text": "import { retry } from \"../utils/retry\";",
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "ctx",
+            "text": "export async function fetchPayment(id: string): Promise<Payment> {",
+            "oldLine": 6,
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "  return retry(() => http.get(`${config.apiBase}/payments/${id}`));",
+            "oldLine": 7,
+            "newLine": 7
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/api/client.ts",
+        "newPath": "src/api/client.ts",
+        "status": "modified"
+      },
+      "added": 2,
+      "removed": 2,
+      "risk": {
+        "score": 0,
+        "tier": "trivial",
+        "signals": [],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "measured"
+        },
+        "trivial": {
+          "kind": "imports",
+          "reason": "Imports reordered"
+        }
+      },
+      "summary": "Imports reordered",
+      "summarySource": "heuristic"
+    },
+    {
+      "hunk": {
+        "id": "src/notifications/email.ts:1",
+        "path": "src/notifications/email.ts",
+        "oldStart": 1,
+        "oldLines": 4,
+        "newStart": 1,
+        "newLines": 5,
+        "section": "",
+        "lines": [
+          {
+            "kind": "del",
+            "text": "// Sends refund receipts.",
+            "oldLine": 1
+          },
+          {
+            "kind": "add",
+            "text": "// Sends refund receipts to the customer who placed the order.",
+            "newLine": 1
+          },
+          {
+            "kind": "add",
+            "text": "// Partial refunds use the same subject line.",
+            "newLine": 2
+          },
+          {
+            "kind": "ctx",
+            "text": "export function refundReceiptSubject(orderId: string) {",
+            "oldLine": 2,
+            "newLine": 3
+          },
+          {
+            "kind": "ctx",
+            "text": "  return `Your refund for order ${orderId}`;",
+            "oldLine": 3,
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 4,
+            "newLine": 5
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/notifications/email.ts",
+        "newPath": "src/notifications/email.ts",
+        "status": "modified"
+      },
+      "added": 2,
+      "removed": 1,
+      "risk": {
+        "score": 0,
+        "tier": "trivial",
+        "signals": [],
+        "coverage": {
+          "instrumented": 0,
+          "covered": 0,
+          "uncoveredLines": [],
+          "status": "file-missing"
+        },
+        "trivial": {
+          "kind": "comments",
+          "reason": "Comments only"
+        }
+      },
+      "summary": "Comments only",
+      "summarySource": "heuristic"
+    },
+    {
+      "hunk": {
+        "id": "src/orders/service.ts:1",
+        "path": "src/orders/service.ts",
+        "oldStart": 1,
+        "oldLines": 9,
+        "newStart": 1,
+        "newLines": 9,
+        "section": "",
+        "lines": [
+          {
+            "kind": "ctx",
+            "text": "export function orderTotal(items: { priceCents: number; qty: number }[]) {",
+            "oldLine": 1,
+            "newLine": 1
+          },
+          {
+            "kind": "del",
+            "text": "  let amt = 0;",
+            "oldLine": 2
+          },
+          {
+            "kind": "add",
+            "text": "  let totalCents = 0;",
+            "newLine": 2
+          },
+          {
+            "kind": "ctx",
+            "text": "  for (const item of items) {",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "kind": "del",
+            "text": "    amt += item.priceCents * item.qty;",
+            "oldLine": 4
+          },
+          {
+            "kind": "add",
+            "text": "    totalCents += item.priceCents * item.qty;",
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "  }",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "del",
+            "text": "  return amt;",
+            "oldLine": 6
+          },
+          {
+            "kind": "add",
+            "text": "  return totalCents;",
+            "newLine": 6
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 8,
+            "newLine": 8
+          },
+          {
+            "kind": "ctx",
+            "text": "export function describeOrder(id: string, itemCount: number) {",
+            "oldLine": 9,
+            "newLine": 9
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/orders/service.ts",
+        "newPath": "src/orders/service.ts",
+        "status": "modified"
+      },
+      "added": 3,
+      "removed": 3,
+      "risk": {
+        "score": 0,
+        "tier": "trivial",
+        "signals": [],
+        "coverage": {
+          "instrumented": 3,
+          "covered": 3,
+          "uncoveredLines": [],
+          "status": "measured"
+        },
+        "trivial": {
+          "kind": "rename",
+          "reason": "Rename only: `amt` → `totalCents`"
+        }
+      },
+      "summary": "Rename only: `amt` → `totalCents`",
+      "summarySource": "heuristic"
+    },
+    {
+      "hunk": {
+        "id": "src/utils/format.ts:1",
+        "path": "src/utils/format.ts",
+        "oldStart": 1,
+        "oldLines": 6,
+        "newStart": 1,
+        "newLines": 6,
+        "section": "",
+        "lines": [
+          {
+            "kind": "del",
+            "text": "export function formatCents(cents: number, currency = 'USD') {",
+            "oldLine": 1
+          },
+          {
+            "kind": "del",
+            "text": "  const value = (cents / 100).toFixed(2)",
+            "oldLine": 2
+          },
+          {
+            "kind": "del",
+            "text": "  return currency === 'USD' ? '$' + value : value + ' ' + currency",
+            "oldLine": 3
+          },
+          {
+            "kind": "add",
+            "text": "export function formatCents(cents: number, currency = \"USD\") {",
+            "newLine": 1
+          },
+          {
+            "kind": "add",
+            "text": "  const value = (cents / 100).toFixed(2);",
+            "newLine": 2
+          },
+          {
+            "kind": "add",
+            "text": "  return currency === \"USD\" ? \"$\" + value : value + \" \" + currency;",
+            "newLine": 3
+          },
+          {
+            "kind": "ctx",
+            "text": "}",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "kind": "ctx",
+            "text": "",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "kind": "del",
+            "text": "export const pad = (s: string, n: number) => s.padStart(n, ' ')",
+            "oldLine": 6
+          },
+          {
+            "kind": "add",
+            "text": "export const pad = (s: string, n: number) => s.padStart(n, \" \");",
+            "newLine": 6
+          }
+        ]
+      },
+      "file": {
+        "oldPath": "src/utils/format.ts",
+        "newPath": "src/utils/format.ts",
+        "status": "modified"
+      },
+      "added": 4,
+      "removed": 4,
+      "risk": {
+        "score": 0,
+        "tier": "trivial",
+        "signals": [],
+        "coverage": {
+          "instrumented": 4,
+          "covered": 4,
+          "uncoveredLines": [],
+          "status": "measured"
+        },
+        "trivial": {
+          "kind": "formatting",
+          "reason": "Whitespace, quotes or punctuation only"
+        }
+      },
+      "summary": "Whitespace, quotes or punctuation only",
+      "summarySource": "heuristic"
+    }
+  ],
+  "notes": []
+}

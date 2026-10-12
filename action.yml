@@ -1,0 +1,48 @@
+name: SecondPass
+description: Rank every hunk in a pull request by risk from the diff and test coverage, and collapse renames and formatting.
+author: Deekshitha Sarabudla
+branding:
+  icon: eye
+  color: orange
+
+inputs:
+  github-token:
+    description: Token used to read the PR diff and post the review-order comment.
+    default: ${{ github.token }}
+  anthropic-api-key:
+    description: Optional. Enables one-line Claude descriptions of each hunk. Descriptions never affect the ranking.
+    required: false
+  model:
+    description: Claude model used for descriptions.
+    default: claude-haiku-5-5
+  coverage-file:
+    description: Optional lcov.info or Cobertura XML for the PR head (comma or newline separated). Untested changes rank higher.
+    required: false
+  ignore:
+    description: Newline-separated regexes; matching file paths are skipped.
+    required: false
+  comment:
+    description: Post (and keep updating) a single PR comment with the review order.
+    default: "true"
+  max-rows:
+    description: Maximum number of ranked hunks listed in the comment.
+    default: "25"
+  fail-on:
+    description: Optional. Fail the step when any hunk reaches this tier (critical, high or medium).
+    required: false
+
+outputs:
+  report-json:
+    description: Path to the JSON report.
+  report-html:
+    description: Path to a self-contained HTML report (upload it as an artifact).
+  critical:
+    description: Number of critical hunks.
+  high:
+    description: Number of high-risk hunks.
+  top-tier:
+    description: Highest tier present (critical, high, medium, low or trivial).
+
+runs:
+  using: node24
+  main: dist/action.js

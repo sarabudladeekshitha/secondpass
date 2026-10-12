@@ -1,0 +1,194 @@
+diff --git a/README.md b/README.md
+index 123ac8a..454e9c8 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,3 @@
+ # Shop
+ 
+-Payments service.
++Payments service. Supports full and partial refunds.
+diff --git a/db/migrations/20261005_partial_refunds.sql b/db/migrations/20261005_partial_refunds.sql
+new file mode 100644
+index 0000000..05229a1
+--- /dev/null
++++ b/db/migrations/20261005_partial_refunds.sql
+@@ -0,0 +1,9 @@
++CREATE TABLE refunds (
++  id TEXT PRIMARY KEY,
++  payment_id TEXT NOT NULL REFERENCES payments(id),
++  amount_cents INTEGER NOT NULL,
++  actor_id TEXT NOT NULL,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++CREATE INDEX idx_refunds_payment_id ON refunds (payment_id);
++ALTER TABLE payments DROP COLUMN legacy_status;
+diff --git a/package-lock.json b/package-lock.json
+index d0eaa06..32bdd48 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -3,7 +3,7 @@
+   "lockfileVersion": 3,
+   "packages": {
+     "node_modules/express": {
+-      "version": "4.19.2"
++      "version": "4.21.2"
+     }
+   }
+ }
+diff --git a/package.json b/package.json
+index 0012bb4..e8662d5 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "shop",
+   "dependencies": {
+-    "express": "^4.19.2"
++    "express": "^4.21.2"
+   }
+ }
+diff --git a/src/api/client.ts b/src/api/client.ts
+index 244bbd9..812de74 100644
+--- a/src/api/client.ts
++++ b/src/api/client.ts
+@@ -1,7 +1,7 @@
+-import { retry } from "../utils/retry";
+-import { logger } from "../utils/logger";
+ import { config } from "../config";
+ import type { Payment, Refund } from "../payments/types";
++import { logger } from "../utils/logger";
++import { retry } from "../utils/retry";
+ 
+ export async function fetchPayment(id: string): Promise<Payment> {
+   return retry(() => http.get(`${config.apiBase}/payments/${id}`));
+diff --git a/src/auth/routes.ts b/src/auth/routes.ts
+index 4b2f2cf..a76f9c3 100644
+--- a/src/auth/routes.ts
++++ b/src/auth/routes.ts
+@@ -5,4 +5,4 @@ import { refundHandler, listRefundsHandler } from "../payments/handlers";
+ export const router = Router();
+ 
+ router.get("/refunds", requireAuth, requireRole("billing"), listRefundsHandler);
+-router.post("/refunds/:paymentId", requireAuth, requireRole("billing"), refundHandler);
++router.post("/refunds/:paymentId", requireAuth, refundHandler);
+diff --git a/src/jobs/sync.ts b/src/jobs/sync.ts
+index 9b8df22..efbcd90 100644
+--- a/src/jobs/sync.ts
++++ b/src/jobs/sync.ts
+@@ -1,18 +1,15 @@
+ import { ledger } from "../ledger";
+ import { logger } from "../utils/logger";
+ 
+-const MAX_ATTEMPTS = 3;
++const MAX_ATTEMPTS = 5;
+ 
+ export async function syncRefundsToLedger(refunds: { id: string; amountCents: number }[]) {
+   for (const refund of refunds) {
+     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+       try {
+-        await ledger.post({ type: "refund", ref: refund.id, amountCents: -refund.amountCents });
++        ledger.post({ type: "refund", ref: refund.id, amountCents: -refund.amountCents });
+         break;
+-      } catch (err) {
+-        logger.warn("ledger post failed", { refund: refund.id, attempt, err });
+-        if (attempt === MAX_ATTEMPTS) throw err;
+-      }
++      } catch (err) {}
+     }
+   }
+ }
+diff --git a/src/notifications/email.ts b/src/notifications/email.ts
+index 6a1a6e3..ce5981e 100644
+--- a/src/notifications/email.ts
++++ b/src/notifications/email.ts
+@@ -1,4 +1,5 @@
+-// Sends refund receipts.
++// Sends refund receipts to the customer who placed the order.
++// Partial refunds use the same subject line.
+ export function refundReceiptSubject(orderId: string) {
+   return `Your refund for order ${orderId}`;
+ }
+diff --git a/src/orders/service.ts b/src/orders/service.ts
+index 4dcb869..d845b1a 100644
+--- a/src/orders/service.ts
++++ b/src/orders/service.ts
+@@ -1,9 +1,9 @@
+ export function orderTotal(items: { priceCents: number; qty: number }[]) {
+-  let amt = 0;
++  let totalCents = 0;
+   for (const item of items) {
+-    amt += item.priceCents * item.qty;
++    totalCents += item.priceCents * item.qty;
+   }
+-  return amt;
++  return totalCents;
+ }
+ 
+ export function describeOrder(id: string, itemCount: number) {
+diff --git a/src/payments/refunds.ts b/src/payments/refunds.ts
+index bb47111..9156498 100644
+--- a/src/payments/refunds.ts
++++ b/src/payments/refunds.ts
+@@ -3,16 +3,24 @@ import type { Payment } from "./types";
+ 
+ export const MAX_REFUND_WINDOW_DAYS = 30;
+ 
+-export async function refundPayment(paymentId: string, actorId: string) {
++export async function refundPayment(paymentId: string, actorId: string, requestedAmount?: string) {
+   const payment: Payment = await db.payments.find(paymentId);
+   if (!payment) throw new Error("payment not found");
+-  if (payment.status !== "captured") {
++  if (payment.status !== "captured" && payment.status !== "partially_refunded") {
+     throw new Error("only captured payments can be refunded");
+   }
+   const ageDays = (Date.now() - payment.capturedAt.getTime()) / 86_400_000;
+-  if (ageDays > MAX_REFUND_WINDOW_DAYS) {
++  if (ageDays >= MAX_REFUND_WINDOW_DAYS) {
+     throw new Error("refund window has closed");
+   }
+-  await db.refunds.insert({ paymentId, amountCents: payment.amountCents, actorId });
+-  await db.payments.update(paymentId, { status: "refunded" });
++  const alreadyRefunded = await db.refunds.sumForPayment(paymentId);
++  const refundAmountCents = requestedAmount
++    ? Math.round(parseFloat(requestedAmount) * 100)
++    : payment.amountCents - alreadyRefunded;
++  if (refundAmountCents > payment.amountCents - alreadyRefunded) {
++    throw new Error("refund exceeds remaining balance");
++  }
++  await db.refunds.insert({ paymentId, amountCents: refundAmountCents, actorId });
++  const fullyRefunded = alreadyRefunded + refundAmountCents === payment.amountCents;
++  await db.payments.update(paymentId, { status: fullyRefunded ? "refunded" : "partially_refunded" });
+ }
+diff --git a/src/utils/format.ts b/src/utils/format.ts
+index 9aa82a3..e11c021 100644
+--- a/src/utils/format.ts
++++ b/src/utils/format.ts
+@@ -1,6 +1,6 @@
+-export function formatCents(cents: number, currency = 'USD') {
+-  const value = (cents / 100).toFixed(2)
+-  return currency === 'USD' ? '$' + value : value + ' ' + currency
++export function formatCents(cents: number, currency = "USD") {
++  const value = (cents / 100).toFixed(2);
++  return currency === "USD" ? "$" + value : value + " " + currency;
+ }
+ 
+-export const pad = (s: string, n: number) => s.padStart(n, ' ')
++export const pad = (s: string, n: number) => s.padStart(n, " ");
+diff --git a/test/refunds.test.ts b/test/refunds.test.ts
+new file mode 100644
+index 0000000..8159198
+--- /dev/null
++++ b/test/refunds.test.ts
+@@ -0,0 +1,12 @@
++import { describe, it, expect } from "vitest";
++import { refundPayment } from "../src/payments/refunds";
++
++describe("refundPayment", () => {
++  it("refunds the remaining balance by default", async () => {
++    await expect(refundPayment("pay_1", "user_1")).resolves.toBeUndefined();
++  });
++
++  it("rejects refunds larger than the remaining balance", async () => {
++    await expect(refundPayment("pay_1", "user_1", "999.00")).rejects.toThrow("exceeds");
++  });
++});
